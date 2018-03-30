@@ -34,8 +34,7 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
         private static ViewerHtmlHandler _htmlHandler;
         private static ViewerImageHandler _imageHandler;
         private static readonly Dictionary<string, Stream> _streams = new Dictionary<string, Stream>();
-
-        private static string _licensePath = @"";
+         
         private static string _storagePath = AppDomain.CurrentDomain.GetData("DataDirectory").ToString(); // App_Data folder path
         private static string _tempPath = AppDomain.CurrentDomain.GetData("DataDirectory") + "\\temp";
         private static string _CachePath = AppDomain.CurrentDomain.GetData("DataDirectory") + "\\umar";
@@ -46,8 +45,7 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
 
             var htmlConfig = new ViewerConfig
             {
-                StoragePath = _storagePath,
-                TempPath = _tempPath,
+                StoragePath = _storagePath, 
                 UseCache = true
             };
 
@@ -55,10 +53,8 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
 
             var imageConfig = new ViewerConfig
             {
-                StoragePath = _storagePath,
-                TempPath = _tempPath,
-                UseCache = true,
-                UsePdf = true
+                StoragePath = _storagePath, 
+                UseCache = true, 
             };
             _imageHandler = new ViewerImageHandler(imageConfig);
 
@@ -112,12 +108,12 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
 
 
 
-            var tree = _htmlHandler.LoadFileTree(new FileTreeOptions(path));
-            var treeNodes = tree.FileTree;
+            var tree = _htmlHandler.GetFileList(new FileListOptions(path));
+            var treeNodes = tree.Files;
             var data = new FileBrowserTreeDataResponse
             {
                 nodes = ToFileTreeNodes(parameters.Path, treeNodes).ToArray(),
-                count = tree.FileTree.Count
+                count = tree.Files.Count
             };
 
             return data;
@@ -231,15 +227,21 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
         {
             if (string.IsNullOrWhiteSpace(request.WatermarkText))
                 return null;
+            string hexString = request.WatermarkColor.ToString();
+
+            int red = int.Parse(hexString.Substring(1, 2), NumberStyles.HexNumber);
+            int green = int.Parse(hexString.Substring(3, 2), NumberStyles.HexNumber);
+            int blue = int.Parse(hexString.Substring(5, 2), NumberStyles.HexNumber);
 
             return new Watermark(request.WatermarkText)
             {
                 Color = request.WatermarkColor.HasValue
-                    ? Color.FromArgb(request.WatermarkColor.Value)
+                    ? Color.FromArgb(red,green,blue)
                     : Color.Red,
                 Position = ToWatermarkPosition(request.WatermarkPosition),
-                Width = request.WatermarkWidth
-            };
+                Width = request.WatermarkWidth,
+
+            }; 
         }
 
         private static Watermark GetWatermark(GetFileParameters request)
@@ -397,11 +399,11 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
                 MaxWidth = maxWidth,
                 MaxHeight = maxHeight
             };
-            DocumentInfoContainer documentInfoContainer = _imageHandler.GetDocumentInfo(request.Path);
-            int[] pageNumbers = new int[documentInfoContainer.Pages.Count];
-            for (int i = 0; i < documentInfoContainer.Pages.Count; i++)
+
+            int[] pageNumbers = new int[docInfo.Pages.Count];
+            for (int i = 0; i < docInfo.Pages.Count; i++)
             {
-                pageNumbers[i] = documentInfoContainer.Pages[i].Number;
+                pageNumbers[i] = docInfo.Pages[i].Number;
             }
             string applicationHost = GetApplicationHost();
             var documentUrls = ImageUrlHelper.GetImageUrls(applicationHost, pageNumbers, request);
@@ -478,10 +480,11 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
             };
 
 
-
+            HttpContext.Current.Session["watermark"] = GetWatermark(request);
             var htmlOptions = new HtmlOptions
             {
                 // IsResourcesEmbedded = Utils.IsImage(fileName),
+                Watermark=(Watermark)HttpContext.Current.Session["watermark"],
                 IsResourcesEmbedded = false,
                 HtmlResourcePrefix = string.Format("/GetResourceForHtml.aspx?documentPath={0}", fileName) + "&pageNumber={page-number}&resourceName=",
             };
@@ -489,7 +492,7 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
             if (request.PreloadPagesCount.HasValue && request.PreloadPagesCount.Value > 0)
             {
                 htmlOptions.PageNumber = 1;
-                htmlOptions.CountPagesToConvert = request.PreloadPagesCount.Value;
+                htmlOptions.CountPagesToRender = request.PreloadPagesCount.Value;
             }
 
             List<string> cssList;
@@ -513,7 +516,14 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
                 htmlPages.AddRange(attachmentPages);
 
             }
-            result.documentDescription = new FileDataJsonSerializer(fileData, new FileDataOptions()).Serialize(false);
+            SerializationOptions serializationOptions = new SerializationOptions
+            {
+                UsePdf = request.UsePdf,
+                SupportListOfBookmarks = request.SupportListOfBookmarks,
+                SupportListOfContentControls = request.SupportListOfContentControls
+            };
+            var documentInfoJson = new DocumentInfoJsonSerializer(docInfo, serializationOptions).Serialize();
+            result.documentDescription = documentInfoJson;
             result.docType = docInfo.DocumentType;
             result.fileType = docInfo.FileType;
             result.pageHtml = htmlPages.Select(_ => _.HtmlContent).ToArray();
@@ -529,8 +539,8 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
             DocumentInfoContainer documentInfoContainer = _imageHandler.GetDocumentInfo(guid);
             int pageNumber = documentInfoContainer.Pages[pageIndex].Number;
 
-            RotatePageOptions rotatePageOptions = new RotatePageOptions(guid, pageNumber, parameters.RotationAmount);
-            _imageHandler.RotatePage(rotatePageOptions);
+            RotatePageOptions rotatePageOptions = new RotatePageOptions( pageNumber, parameters.RotationAmount);
+            _imageHandler.RotatePage(guid,rotatePageOptions);
             DocumentInfoContainer container = _imageHandler.GetDocumentInfo(guid);
 
             PageData pageData = container.Pages.Single(_ => _.Number == pageNumber);
@@ -557,8 +567,9 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
 
             var htmlOptions = new HtmlOptions
             {
+                Watermark = (Watermark)HttpContext.Current.Session["watermark"],
                 PageNumber = parameters.PageIndex + 1,
-                CountPagesToConvert = 1,
+                CountPagesToRender = 1,
                 IsResourcesEmbedded = false,
                 HtmlResourcePrefix = string.Format(
                     "/GetResourceForHtml.aspx?documentPath={0}", parameters.Path) +
@@ -584,8 +595,8 @@ namespace GroupDocs.Viewer.WebForm.FrontEnd
             int pageNumber = documentInfoContainer.Pages[parameters.OldPosition].Number;
             int newPosition = parameters.NewPosition + 1;
 
-            ReorderPageOptions reorderPageOptions = new ReorderPageOptions(guid, pageNumber, newPosition);
-            _imageHandler.ReorderPage(reorderPageOptions);
+            ReorderPageOptions reorderPageOptions = new ReorderPageOptions( pageNumber, newPosition);
+            _imageHandler.ReorderPage(guid,reorderPageOptions);
 
             return (new ReorderPageResponse());
         }

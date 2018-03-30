@@ -34,7 +34,7 @@ namespace GroupDocs.Viewer.Model
             //set the storage path
             config.StoragePath = Storage_Path;
             //Uncomment the below line for cache purpose
-            config.TempPath = Storage_Path + "\\Temp";
+            config.CachePath = Storage_Path + "\\Temp";
             config.UseCache = true;
             return config;
             //ExEnd:Configurations
@@ -66,7 +66,7 @@ namespace GroupDocs.Viewer.Model
             {
                 //ExStart:rotationAngle
                 // Set the property of handler's rotate Page
-                handler.RotatePage(new RotatePageOptions(guid, PageNumber, angle));
+                handler.RotatePage(guid, new RotatePageOptions( PageNumber, angle));
                 //ExEnd:rotationAngle
              }
             /// <summary>
@@ -79,7 +79,7 @@ namespace GroupDocs.Viewer.Model
             {
                 //ExStart:rotationAngle
                 // Set the property of handler's rotate Page
-                handler.RotatePage(new RotatePageOptions(guid, PageNumber, angle));
+                handler.RotatePage(guid, new RotatePageOptions( PageNumber, angle));
                 //ExEnd:rotationAngle
             }
            /// <summary>
@@ -93,9 +93,9 @@ namespace GroupDocs.Viewer.Model
             {
                 //ExStart:reorderPage
                 //Initialize the ReorderPageOptions object by passing guid as document name, current Page Number, new page number
-                ReorderPageOptions options = new ReorderPageOptions(guid, currentPageNumber, newPageNumber);
+                ReorderPageOptions options = new ReorderPageOptions( currentPageNumber, newPageNumber);
                // call ViewerHandler's Reorder page function by passing initialized ReorderPageOptions object.
-                Handler.ReorderPage(options);
+                Handler.ReorderPage(guid, options);
                 //ExEnd:reorderPage
             }
             /// <summary>
@@ -109,9 +109,9 @@ namespace GroupDocs.Viewer.Model
             {
                 //ExStart:reorderPage
                 //Initialize the ReorderPageOptions object by passing guid as document name, current Page Number, new page number
-                ReorderPageOptions options = new ReorderPageOptions(guid, currentPageNumber, newPageNumber);
+                ReorderPageOptions options = new ReorderPageOptions( currentPageNumber, newPageNumber);
                 // call ViewerHandler's Reorder page function by passing initialized ReorderPageOptions object.
-                Handler.ReorderPage(options);
+                Handler.ReorderPage(guid, options);
                 //ExEnd:reorderPage
             }
             /// <summary>
